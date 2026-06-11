@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Echoes of Destiny - 運命のカードゲーム</title>
+    <style>
+        /* --- リセット & 基本設定 --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: #0d0f12;
+            color: #e2e8f0;
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            perspective: 1000px;
+            transition: background 1.5s ease, color 1.5s ease;
+        }
+
+        /* --- 背景演出レイヤー --- */
+        .bg-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+            opacity: 0.15;
+            background-image: 
+                radial-gradient(at 20% 20%, #3b82f6 0px, transparent 50%),
+                radial-gradient(at 80% 80%, #8b5cf6 0px, transparent 50%);
+            transition: all 2s ease;
+        }
+
+        /* --- メインコンテナ --- */
+        .game-container {
+            position: relative;
+            z-index: 10;
+            width: 90%;
+            max-width: 800px;
+            background: rgba(20, 24, 33, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            transition: all 0.5s ease;
+        }
+
+        /* --- 進行度インジケーター --- */
+        .progress-container {
+            width: 100%;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: #94a3b8;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* --- ストーリー表示エリア --- */
+        .story-wrapper {
+            min-height: 140px;
+            display: flex;
+            align-items: center;
+        }
+
+        .story-text {
+            font-size: 1.15rem;
+            line-height: 1.8;
+            letter-spacing: 0.05em;
+            color: #f1f5f9;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* タイピングのカーソル演出 */
+        .story-text::after {
+            content: '|';
+            animation: blink 0.8s infinite;
+            opacity: 1;
+            color: #3b82f6;
+            margin-left: 4px;
+        }
+        .story-text.typing-complete::after {
+            display: none;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+
+        /* --- カード（選択肢）エリア --- */
+        .choices-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+            width: 100%;
+        }
+
+        @media (min-width: 600px) {
+            .choices-container.grid-2 { grid-template-columns: 1fr 1fr; }
+        }
+
+        .card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8));
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 20px 24px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            min-height: 80px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        /* カード出現アニメーション */
+        .card.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* カードのホバーエフェクト */
+        .card:hover {
+            transform: translateY(-4px) scale(1.02);
+            border-color: #3b82f6;
+            box-shadow: 0 12px 24px rgba(59, 130, 246, 0.2);
+            background: linear-gradient(135deg, rgba(38, 52, 75, 0.8), rgba(22, 32, 54, 0.9));
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+            transition: 0.5s;
+        }
+
+        .card:hover::before {
+            left: 100%;
+        }
+
+        .card-text {
+            font-size: 1rem;
+            font-weight: 500;
+            color: #e2e8f0;
+            line-height: 1.5;
+            transition: color 0.3s;
+        }
+
+        .card:hover .card-text {
+            color: #ffffff;
+        }
+
+        /* クリックされた時の決定アニメーション */
+        .card.selected {
+            transform: scale(0.95);
+            border-color: #8b5cf6;
+            background: rgba(139, 92, 246, 0.2);
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
+        }
+
+        /* --- リスタート・システムボタン --- */
+        .btn-action {
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            padding: 14px 28px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            letter-spacing: 0.1em;
+            box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);
+            transition: all 0.3s;
+            display: none;
+            align-self: center;
+            margin-top: 10px;
+        }
+
+        .btn-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6);
+            filter: brightness(1.1);
+        }
+
+        /* --- 特殊エンディング演出（Bodyクラス切り替え用） --- */
+        body.ending-happy {
+            background-color: #1a1c1e;
+        }
+        body.ending-happy .bg-overlay {
+            opacity: 0.3;
+            background-image: radial-gradient(circle, rgba(234,179,8,0.3) 0%, transparent 70%);
+        }
+        body.ending-happy .game-container {
+            border-color: rgba(234, 179, 8, 0.3);
+            box-shadow: 0 0 40px rgba(234, 179, 8, 0.2);
+        }
+
+        body.ending-bad {
+            background-color: #110303;
+        }
+        body.ending-bad .bg-overlay {
+            opacity: 0.4;
+            background-image: radial-gradient(circle, rgba(239,68,68,0.4) 0%, transparent 70%);
+        }
+        body.ending-bad .game-container {
+            border-color: rgba(239, 68, 68, 0.3);
+            box-shadow: 0 0 40px rgba(239, 68, 68, 0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-overlay" id="bgOverlay"></div>
+
+    <div class="game-container">
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-header">
+                <span id="progressStep">STAGE 1 / 5</span>
+                <span id="progressPercent">0%</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progressBar"></div>
+            </div>
+        </div>
+
+        <div class="story-wrapper">
+            <p class="story-text" id="storyText"></p>
+        </div>
+
+        <div class="choices-container" id="choicesContainer"></div>
+
+        <button class="btn-action" id="actionBtn">最初からやり直す</button>
+    </div>
+
+    <script>
+        /* ==========================================
+         * シナリオデータ構造 (拡張・編集が容易)
+         * ========================================== */
+        const scenarioData = {
+            // --- ステージ 1 ---
+            "stage1": {
+                step: 1,
+                text: "【第1問：深淵の目覚め】\n気がつくと、あなたは冷たい石床の上にいた。目の前には二つの巨大な扉がある。左からは微かに心地よい風が吹き、右からは重々しい静寂が漂っている。",
+                choices: [
+                    { text: "かすかな風を感じる「左の扉」を開ける", nextScene: "stage2" },
+                    { text: "不気味なほど静かな「右の扉」を開ける", nextScene: "bad_gate" }
+                ]
+            },
+            // 即死バッド（ステージ1直後）
+            "bad_gate": {
+                isEnd: true,
+                type: "bad",
+                text: "【BAD END：無音の捕食者】\n扉を開けた瞬間、音も無く現れた異形の影に引きずり込まれた。あなたは抵抗する術もなく、暗闇の底へと消えていった……。",
+            },
+
+            // --- ステージ 2 ---
+            "stage2": {
+                step: 2,
+                text: "【第2問：微睡みの守護者】\n通路を進むと、巨大な魔獣が道を塞いで眠っていた。その傍らには、古びた宝箱と、奥へ続く細い隙間がある。",
+                choices: [
+                    { text: "気配を殺し、壁の「細い隙間」をすり抜ける", nextScene: "stage3_merge" },
+                    { text: "一か八か、魔獣の横にある「宝箱」を開ける", nextScene: "stage2_chest" }
+                ]
+            },
+            // パラレル分岐ルート
+            "stage2_chest": {
+                step: 2,
+                text: "【第2問：欲の代償】\n宝箱を開けると、中から眩い光を放つ『破魔の魔石』を手に入れた！しかし、その輝きで魔獣が目を覚ましてしまう。あなたは慌てて奥の隙間へと飛び込んだ！",
+                choices: [
+                    { text: "息を整えて先へ進む", nextScene: "stage3_merge" }
+                ]
+            },
+
+            // --- ステージ 3（ここで合流するパラレル方式） ---
+            "stage3_merge": {
+                step: 3,
+                text: "【第3問：賢者の天秤】\n怪しげな光が灯る広間に到達した。中央には意思を持つ石像が鎮座している。『進みたくば、汝の魂の価値を示せ』石像はあなたに謎を投げかける。「この世で最も重いものは何か？」",
+                choices: [
+                    { text: "「過去の後悔」と答える", nextScene: "stage4" },
+                    { text: "「黄金の輝き」と答える", nextScene: "bad_statue" },
+                    { text: "「未来への希望」と答える", nextScene: "stage4" } // AでもCでもステージ4へ合流
+                ]
+            },
+            // 即死バッド（ステージ3直後）
+            "bad_statue": {
+                isEnd: true,
+                type: "bad",
+                text: "【BAD END：強欲の石化】\n「愚かなり」石像の目が怪しく光る。あなたの身体は足元から徐々に冷たい灰色の石へと変わっていき、永遠の調度品となった。",
+            },
+
+            // --- ステージ 4 ---
+            "stage4": {
+                step: 4,
+                text: "【第4問：最後の試練】\nついに迷宮の最深部、出口の門の前に辿り着いた。しかし、門の前には漆黒の鎧を纏った『迷宮の番人』が立ち塞がっている。戦うか、それとも――",
+                choices: [
+                    { text: "武器を構え、真っ向から決闘を挑む", nextScene: "bad_guardian" },
+                    { text: "静かにひざまずき、恭順の意を示す", nextScene: "happy_end" }
+                ]
+            },
+            // 即死バッド（ステージ4直後）
+            "bad_guardian": {
+                isEnd: true,
+                type: "bad",
+                text: "【BAD END：無謀の刃】\n番人の圧倒的な一撃の前に、あなたの武器は砕け散った。絶対的な力の差を思い知らされながら、意識は暗転した。",
+            },
+
+            // --- ハッピーエンディング ---
+            "happy_end": {
+                isEnd: true,
+                type: "happy",
+                text: "【HAPPY END：黎明の解放】\n番人は静かに頷き、道を譲った。重厚な門が開くと、そこには眩いばかりの現実世界の朝日が広がっていた。あなたは自身の知恵と勇気で見事、この悪夢の迷宮を生き延びたのだ！\n\n―― 完 ――",
+            }
+        };
+
+        // 総ステージ数（プログレスバー計算用）
+        const TOTAL_STEPS = 5; 
+
+        /* ==========================================
+         * ゲーム制御ロジック
+         * ========================================== */
+        let currentSceneId = "stage1";
+        let isTyping = false;
+        let typingTimeout = null;
+
+        // DOM要素の取得
+        const storyTextEl = document.getElementById("storyText");
+        const choicesContainerEl = document.getElementById("choicesContainer");
+        const progressContainerEl = document.getElementById("progressContainer");
+        const progressStepEl = document.getElementById("progressStep");
+        const progressPercentEl = document.getElementById("progressPercent");
+        const progressBarEl = document.getElementById("progressBar");
+        const actionBtnEl = document.getElementById("actionBtn");
+
+        // ゲームの初期化
+        function initGame() {
+            currentSceneId = "stage1";
+            document.body.className = ""; // 背景演出のクリア
+            progressContainerEl.style.display = "block";
+            actionBtnEl.style.display = "none";
+            renderScene(currentSceneId);
+        }
+
+        // シーンの描画
+        function renderScene(sceneId) {
+            const scene = scenarioData[sceneId];
+            if (!scene) return;
+
+            // 1. プログレスバーの更新
+            if (scene.isEnd) {
+                progressContainerEl.style.display = "none"; // エンディング時は非表示
+            } else {
+                const currentStep = scene.step || 1;
+                const percent = Math.floor(((currentStep - 1) / TOTAL_STEPS) * 100);
+                progressStepEl.textContent = `STAGE ${currentStep} / ${TOTAL_STEPS}`;
+                progressPercentEl.textContent = `${percent}%`;
+                progressBarEl.style.width = `${percent}%`;
+            }
+
+            // 2. 選択肢のクリア
+            choicesContainerEl.innerHTML = "";
+
+            // 3. テキストのタイピング演出開始
+            typeWriter(scene.text, () => {
+                // タイピング完了後のコールバックで選択肢 or 終了ボタンを表示
+                if (scene.isEnd) {
+                    showEndSequence(scene);
+                } else {
+                    showChoices(scene.choices);
+                }
+            });
+        }
+
+        // 心地よいタイピングエフェクト
+        function typeWriter(text, callback) {
+            if (typingTimeout) clearTimeout(typingTimeout);
+            storyTextEl.classList.remove("typing-complete");
+            storyTextEl.textContent = "";
+            isTyping = true;
+
+            let index = 0;
+            // 改行コードを考慮しつつ1文字ずつ出力
+            function type() {
+                if (index < text.length) {
+                    storyTextEl.textContent += text.charAt(index);
+                    index++;
+                    // 文字による緩急（読点・句点は少し長めに待つと心地よい）
+                    const char = text.charAt(index - 1);
+                    let speed = 30; // 通常のタイピング速度(ms)
+                    if (char === "、" || char === "。") speed = 200;
+                    if (char === "\n") speed = 400;
+
+                    typingTimeout = setTimeout(type, speed);
+                } else {
+                    isTyping = false;
+                    storyTextEl.classList.add("typing-complete");
+                    if (callback) callback();
+                }
+            }
+            type();
+        }
+
+        // 選択肢カードの動的生成と表示
+        function showChoices(choices) {
+            // 選択肢の数に応じてグリッドのレイアウトを変更 (2つなら2列、それ以外は1列など)
+            if (choices.length === 2) {
+                choicesContainerEl.className = "choices-container grid-2";
+            } else {
+                choicesContainerEl.className = "choices-container";
+            }
+
+            choices.forEach((choice, index) => {
+                const card = document.createElement("div");
+                card.className = "card";
+                
+                const cardText = document.createElement("span");
+                cardText.className = "card-text";
+                cardText.textContent = choice.text;
+                
+                card.appendChild(cardText);
+
+                // カードクリック時のイベント
+                card.addEventListener("click", () => {
+                    if (isTyping) return; // タイピング中はクリック不可
+                    handleChoiceSelect(card, choice.nextScene);
+                });
+
+                choicesContainerEl.appendChild(card);
+
+                // 時間差（ディレイ）をつけてカードを滑らかにフェードイン
+                setTimeout(() => {
+                    card.classList.add("show");
+                }, index * 150);
+            });
+        }
+
+        // 選択肢が選ばれた際の演出処理
+        function handleChoiceSelect(selectedCard, nextSceneId) {
+            // 全てのカードのクリックを無効化し、選ばれたカードにエフェクトを付与
+            const cards = choicesContainerEl.querySelectorAll(".card");
+            cards.forEach(card => {
+                card.style.pointerEvents = "none";
+                if (card !== selectedCard) {
+                    card.style.opacity = "0.2";
+                    card.style.transform = "scale(0.95)";
+                }
+            });
+
+            selectedCard.classList.add("selected");
+
+            // 演出用の短いディレイの後に次のシーンへ
+            setTimeout(() => {
+                currentSceneId = nextSceneId;
+                renderScene(currentSceneId);
+            }, 600);
+        }
+
+        // エンディング時の特別演出
+        function showEndSequence(scene) {
+            // プログレスバーを100%にしてから消す
+            if (scene.type === "happy") {
+                progressContainerEl.style.display = "block";
+                progressStepEl.textContent = "COMPLETE";
+                progressPercentEl.textContent = "100%";
+                progressBarEl.style.width = "100%";
+                
+                setTimeout(() => {
+                    document.body.className = "ending-happy";
+                }, 200);
+            } else if (scene.type === "bad") {
+                document.body.className = "ending-bad";
+            }
+
+            // アクションボタン（リスタート）の表示
+            setTimeout(() => {
+                actionBtnEl.textContent = scene.type === "happy" ? "もう一度運命に挑む" : "運命をやり直す（Stage 1へ）";
+                actionBtnEl.style.display = "block";
+            }, 1000);
+        }
+
+        // 全文即時表示（ユーザーがタイピング中に画面をクリックした際の救済用）
+        document.querySelector(".game-container").addEventListener("click", (e) => {
+            // カードやボタンのクリック時は発火させない
+            if (e.target.closest(".card") || e.target.closest(".btn-action")) return;
+            
+            if (isTyping) {
+                clearTimeout(typingTimeout);
+                const scene = scenarioData[currentSceneId];
+                storyTextEl.textContent = scene.text;
+                storyTextEl.classList.add("typing-complete");
+                isTyping = false;
+                
+                if (scene.isEnd) {
+                    showEndSequence(scene);
+                } else {
+                    showChoices(scene.choices);
+                }
+            }
+        });
+
+        // アクションボタンのイベント
+        actionBtnEl.addEventListener("click", initGame);
+
+        // ゲーム開始
+        window.addEventListener("DOMContentLoaded", initGame);
+    </script>
+</body>
+</html>
+
